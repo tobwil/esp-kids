@@ -86,12 +86,13 @@ dann gar nicht freigeben, und auch das Kind könnte dort eine PIN festlegen. Des
 ## Weboberfläche
 
 `https://<IP der Uhr>` bzw. `https://pixeluhr-xxxx.local` (QR-Code im Eltern-Menü; `http://` leitet um). Fürs Handy
-gebaut, hell und dunkel. Ist eine Eltern-PIN gesetzt, fragt die Seite danach. Reiter:
+gebaut, hell und dunkel. Ist eine Eltern-PIN gesetzt, fragt die Seite sie über ein Zahlenfeld ab (auch per Tastatur);
+der Browser merkt sie sich danach. Reiter:
 
 - **Heute:** je App der Stand, die heute genutzten Minuten, Knöpfe **15 Min. · 30 Min. · 1 Std. · bis Bett** und
   **Jetzt sperren**; die Woche als Balken; Wetter, Bettzeit; „Uhr klingeln lassen“.
 - **Regeln:** Minuten pro Tag (Mo–Fr, Sa & So) und „Ohne Freigabe“ je App, Aufstehen, Bettzeit, Einschlafhören,
-  Nachtruhe, Lautstärke-Grenze, Eltern-PIN, Balance-Rekorde.
+  Nachtruhe, Lautstärke-Grenze, Eltern-PIN festlegen oder ändern (Zahlenfeld, zweimal), Balance-Rekorde.
 - **Hören:** Fernbedienung (abspielen, Pause, weiter, Lautstärke, Sleep-Timer – auch nachts und ohne Freigabe, die Zeit
   zählt trotzdem), die Freigabeliste, **Suchen und Stöbern** in Radio und ARD Audiothek mit 🧸 + zum Freigeben, zuletzt
   gehörte Folgen.
