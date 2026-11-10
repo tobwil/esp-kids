@@ -1,5 +1,6 @@
-// Eltern-Menü (Zifferblatt lange drücken, Eltern-PIN): Apps freigeben oder sperren, WLAN, QR-Code zur
-// Weboberfläche, Eltern-PIN, Infos, Neustart. Alles Weitere stellt man in der Weboberfläche ein.
+// Eltern-Menü (Zifferblatt 1,5 s gedrückt halten, Eltern-PIN): Apps freigeben oder sperren, WLAN, QR-Code zur
+// Weboberfläche, Eltern-PIN, Infos, Neustart. „Fertig“, BOOT oder Display aus führen zurück zum Zifferblatt.
+// Alles Weitere stellt man in der Weboberfläche ein.
 #include <WiFi.h>
 #include "../audio.h"
 #include "../kids.h"
@@ -69,6 +70,12 @@ static void parentBuild(lv_obj_t* scr) {
       else newPin();
     }, LV_EVENT_CLICKED, (void*)&r);
   }
+  lv_obj_t* done = pill(l, I_CHECK "  Fertig", C_SKY(), C_BG());
+  lv_obj_add_event_cb(done, [](lv_event_t*) { play(0); home(); }, LV_EVENT_CLICKED, nullptr);
+  lv_obj_t* h = label(l, &font_text_20, C_DIM(), "Schließt sich auch, wenn das Display ausgeht");
+  lv_label_set_long_mode(h, LV_LABEL_LONG_WRAP);
+  lv_obj_set_width(h, 280);
+  lv_obj_set_style_text_align(h, LV_TEXT_ALIGN_CENTER, 0);
   parentResume();
   listFit(l);
 }

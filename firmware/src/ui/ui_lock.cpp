@@ -17,8 +17,10 @@ static void (*padNew)(const char* pin) = nullptr;  // neue PIN festlegen statt p
 static uint8_t wrong = 0;
 static uint32_t lockedUntil = 0;
 
+// Schließen auch aus einem Ereignis der eigenen Tasten heraus: LVGL löscht nach dem Ereignis. Nicht mit lv_async_call –
+// verzögerte Aufrufe laufen in umgekehrter Reihenfolge, ein gleich danach geöffnetes Feld würde wieder geschlossen.
 static void padClose() {
-  if (padObj) { lv_obj_delete(padObj); padObj = nullptr; }
+  if (padObj) { lv_obj_delete_async(padObj); padObj = nullptr; }
 }
 
 static void shuffle() {
@@ -60,7 +62,7 @@ static void digit(int d) {
     char pin[9];
     snprintf(pin, sizeof(pin), "%s", entered);
     void (*done)(const char*) = padNew;
-    lv_async_call([](void*) { padClose(); }, nullptr);
+    padClose();
     done(pin);
     return;
   }
@@ -68,7 +70,7 @@ static void digit(int d) {
   if (kids::pinOk(entered)) {
     wrong = 0;
     void (*ok)() = padOk;
-    lv_async_call([](void*) { padClose(); }, nullptr);
+    padClose();
     audio::play(audio::FX_OK);
     if (ok) ok();
     return;
@@ -79,7 +81,7 @@ static void digit(int d) {
     wrong = 0;
     lockedUntil = millis() + 60000;
     toast("Dreimal falsch – eine Minute Pause");
-    lv_async_call([](void*) { padClose(); }, nullptr);
+    padClose();
     return;
   }
   toast("Falsche PIN");
@@ -130,7 +132,7 @@ static void padBuild(const char* why) {
     lv_obj_add_event_cb(b, [](lv_event_t* e) {
       int k = (int)(intptr_t)lv_event_get_user_data(e);
       audio::play(audio::FX_TICK);
-      if (k == 9) { lv_async_call([](void*) { padClose(); }, nullptr); return; }
+      if (k == 9) { padClose(); return; }
       if (k == 11) { size_t n = strlen(entered); if (n) entered[n - 1] = 0; showDots(); return; }
       digit(digitAt[k < 9 ? k : 9]);
     }, LV_EVENT_CLICKED, (void*)(intptr_t)k);
@@ -159,7 +161,7 @@ void newPin() {
       audio::play(audio::FX_OK);
       toast("Eltern-PIN gespeichert");
     };
-    lv_async_call([](void*) { padBuild("PIN wiederholen"); }, nullptr);
+    padBuild("PIN wiederholen");
   };
   padOk = nullptr;
   padBuild("Neue PIN (4 Ziffern)");
@@ -171,7 +173,7 @@ static lv_obj_t* durObj = nullptr;
 static quota::App durApp;
 
 static void durClose() {
-  if (durObj) { lv_obj_delete(durObj); durObj = nullptr; }
+  if (durObj) { lv_obj_delete_async(durObj); durObj = nullptr; }
 }
 
 static void openPage(quota::App a) {
@@ -205,7 +207,7 @@ static void durationDialog() {
       int m = MIN[(int)(intptr_t)lv_event_get_user_data(e)];
       quota::unlock(durApp, m, true);
       quota::App a = durApp;
-      lv_async_call([](void*) { durClose(); }, nullptr);
+      durClose();
       char b[64];
       long left = quota::leftS(a);
       if (left < 0) snprintf(b, sizeof(b), "%s ist frei", quota::name(a));
@@ -224,8 +226,13 @@ static void durationDialog() {
       toast("Gesperrt");
       if (top() == &PAGE_PARENT && PAGE_PARENT.resume) PAGE_PARENT.resume();
     }
-    lv_async_call([](void*) { durClose(); }, nullptr);
+    durClose();
   }, LV_EVENT_CLICKED, (void*)(intptr_t)open);
+}
+
+void closeLockDialogs() {
+  padClose();
+  durClose();
 }
 
 void unlockDialog(quota::App a) {
@@ -247,12 +254,12 @@ void openApp(quota::App a) {
     default:
       break;
   }
-  if (!kids::hasPin()) { toast("Erst eine Eltern-PIN festlegen (Zifferblatt lange drücken)", 3500); return; }
+  if (!kids::hasPin()) { toast("Erst eine Eltern-PIN festlegen (Zifferblatt 1,5 s gedrückt halten)", 3500); return; }
   durApp = a;
   char b[48];
   snprintf(b, sizeof(b), quota::status(a) == quota::USED_UP ? "Für heute aufgebraucht · Eltern-PIN" : "%s · Eltern-PIN",
            quota::name(a));
-  askPin(b, []() { lv_async_call([](void*) { durationDialog(); }, nullptr); });
+  askPin(b, durationDialog);
 }
 
 }  // namespace ui

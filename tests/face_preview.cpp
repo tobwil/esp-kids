@@ -1,5 +1,5 @@
-// Vorschau des Zifferblatts am Rechner: alle Wetter, Tag und Nacht, alle Kleidungen und die Schlafenszeit
-// als ein Bild (tests/out/zifferblatt.ppm). Prüft dabei, dass nichts außerhalb des Rasters landet.
+// Vorschau des Zifferblatts am Rechner: alle Wetter, Tag und Nacht, als ein Bild (tests/out/zifferblatt.ppm).
+// Prüft dabei, dass nichts außerhalb des Rasters landet.
 //   sh tests/run_host.sh
 #include <stdio.h>
 #include <string.h>
@@ -9,12 +9,12 @@
 using namespace faceart;
 
 int main() {
-  struct Case { Sky sky; bool day; int temp; bool sleeping; int code; };
+  struct Case { Sky sky; bool day; int temp; int code; };
   const Case cases[] = {
-      {CLEAR, true, 27, false, 0},   {PARTLY, true, 19, false, 2},  {CLOUDY, true, 13, false, 3},
-      {FOG, true, 6, false, 45},     {DRIZZLE, true, 11, false, 53}, {RAIN, true, 9, false, 63},
-      {STORM, true, 16, false, 95},  {SNOW, true, -1, false, 73},   {CLOUDY, true, -4, false, 3},
-      {CLEAR, false, 12, false, 0},  {RAIN, false, 8, false, 61},   {PARTLY, false, 4, true, 2},
+      {CLEAR, true, 27, 0},   {PARTLY, true, 19, 2},  {CLOUDY, true, 13, 3},
+      {FOG, true, 6, 45},     {DRIZZLE, true, 11, 53}, {RAIN, true, 9, 63},
+      {STORM, true, 16, 95},  {SNOW, true, -1, 73},   {CLOUDY, true, -4, 3},
+      {CLEAR, false, 12, 0},  {RAIN, false, 8, 61},   {PARTLY, false, 4, 2},
   };
   const int N = sizeof(cases) / sizeof(cases[0]), COLS = 4, Z = 3, PAD = 6;
   const int ROWS = (N + COLS - 1) / COLS, W = COLS * (S * Z + PAD) + PAD, H = ROWS * (S * Z + PAD) + PAD;
@@ -37,7 +37,6 @@ int main() {
       s.wday = i % 7;
       s.mday = 10 + i;
       s.month = 11;
-      s.sleeping = cases[i].sleeping;
       s.battery = 15 + i * 8;
       s.charging = i == 5;
       s.playing = i % 3 == 0;
@@ -55,11 +54,7 @@ int main() {
         p[1] = ((c >> 5) & 63) * 255 / 63;
         p[2] = (c & 31) * 255 / 31;
       }
-    Scene t{};
-    t.weather = true;
-    t.sky = cases[i].sky;
-    t.temp = cases[i].temp;
-    printf("%-8s %3d °C  %s\n", cases[i].day ? "Tag" : "Nacht", cases[i].temp, cases[i].sleeping ? "schläft" : outfitText(outfit(t)));
+    printf("%-6s %3d °C  Wettercode %d\n", cases[i].day ? "Tag" : "Nacht", cases[i].temp, cases[i].code);
   }
   FILE* f = fopen(OUT, "wb");
   if (!f) { perror(OUT); return 1; }

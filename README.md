@@ -18,11 +18,8 @@ docs/       Bilder
 ![Zifferblatt](docs/screens/zifferblatt.png)
 
 Große Pixel-Uhrzeit, darunter Wochentag und Datum, dahinter das Wetter von gerade eben (Open-Meteo, Standort per IP):
-Sonne, Wolken, Regen, Gewitter mit Blitzen, Schnee, Nebel – nachts Mond und Sterne. Regen, Schnee und Wolken bewegen
-sich. Unten steht ein Kind, angezogen wie es das Wetter verlangt: **T-Shirt, kurze Hose und Kappe** (ab 24 °C, bei Sonne
-mit Sonnenbrille), **T-Shirt** (ab 17 °C), **Pulli** (ab 10 °C), **Jacke** (ab 3 °C), **Winterjacke mit Mütze, Schal
-und Handschuhen**, bei Regen **Regenjacke und Gummistiefel** (und einen Schirm), bei Schnee **Schneesachen**. Daneben
-die Temperatur. Zur Schlafenszeit liegt das Kind im Bett. Unten der Akku, eine Note, wenn etwas läuft.
+Sonne, Wolken, Regen mit Pfützen, Gewitter mit Blitzen, Schnee, Nebel – nachts Mond und Sterne. Regen, Schnee und
+Wolken bewegen sich. Auf der Wiese steht die Temperatur, ganz unten der Akku und eine Note, wenn etwas läuft.
 
 ## Bedienung
 
@@ -30,7 +27,7 @@ die Temperatur. Zur Schlafenszeit liegt das Kind im Bett. Unten der Akku, eine N
 |---|---|---|
 | Zifferblatt | antippen, ↑ hochwischen | Apps (läuft etwas: die Wiedergabe) |
 | Zifferblatt | ↓ runterwischen | Kontrollzentrum: Lautstärke, Helligkeit, Display aus |
-| Zifferblatt | **lange drücken** | Eltern-Menü (mit Eltern-PIN) |
+| Zifferblatt | **1,5 s gedrückt halten** | Eltern-Menü (mit Eltern-PIN) |
 | überall | → nach rechts wischen | zurück |
 | überall | am Rand entlang ziehen | Lautstärke (solange etwas läuft) |
 | überall | **BOOT** | Zifferblatt: Apps · sonst: zurück zum Zifferblatt |
@@ -80,9 +77,11 @@ höchstens zwei Stunden, dazwischen stellt sie ihre Uhr per WLAN nach.
 
 ## Eltern-Menü an der Uhr
 
-Zifferblatt lange drücken, Eltern-PIN: Balance, Radio und Hörspiele **freigeben oder sperren**, **WLAN** einrichten,
-**QR-Code** zur Weboberfläche, **Eltern-PIN** festlegen oder ändern (4 Ziffern, zweimal), Infos, Neustart. Ist noch
-keine PIN gesetzt, öffnet sich das Menü ohne – und die Apps lassen sich erst freigeben, wenn es eine PIN gibt.
+Zifferblatt 1,5 s gedrückt halten, Eltern-PIN: Balance, Radio und Hörspiele **freigeben oder sperren**, **WLAN**
+einrichten, **QR-Code** zur Weboberfläche, **Eltern-PIN** festlegen oder ändern (4 Ziffern, zweimal), Infos, Neustart.
+Raus geht es mit **Fertig**, BOOT oder nach rechts wischen; geht das Display aus, ist das Menü beim nächsten Einschalten
+zu (offene Freigabe-Dialoge auch). Ist noch keine PIN gesetzt, öffnet sich das Menü ohne Abfrage – die Apps lassen sich
+dann gar nicht freigeben, und auch das Kind könnte dort eine PIN festlegen. Deshalb gleich zu Anfang eine PIN setzen.
 
 ## Weboberfläche
 
@@ -90,7 +89,7 @@ keine PIN gesetzt, öffnet sich das Menü ohne – und die Apps lassen sich erst
 gebaut, hell und dunkel. Ist eine Eltern-PIN gesetzt, fragt die Seite danach. Reiter:
 
 - **Heute:** je App der Stand, die heute genutzten Minuten, Knöpfe **15 Min. · 30 Min. · 1 Std. · bis Bett** und
-  **Jetzt sperren**; die Woche als Balken; Wetter und was das Kind anziehen sollte; „Uhr klingeln lassen“.
+  **Jetzt sperren**; die Woche als Balken; Wetter, Bettzeit; „Uhr klingeln lassen“.
 - **Regeln:** Minuten pro Tag (Mo–Fr, Sa & So) und „Ohne Freigabe“ je App, Aufstehen, Bettzeit, Einschlafhören,
   Nachtruhe, Lautstärke-Grenze, Eltern-PIN, Balance-Rekorde.
 - **Hören:** Fernbedienung (abspielen, Pause, weiter, Lautstärke, Sleep-Timer – auch nachts und ohne Freigabe, die Zeit
@@ -111,7 +110,7 @@ warnt der Browser einmal („trotzdem öffnen“); danach ist die Verbindung ver
    ESP-IDF verträgt keine Leerzeichen im Projektpfad; `tools/build.sh` baut in dem Fall eine Kopie unter `/tmp`.
    Ohne Leerzeichen geht auch `cd firmware && pio run -t upload`. Erkennt der Rechner das Board nicht: **BOOT**
    halten, kurz **PWR** drücken, BOOT loslassen, erneut hochladen.
-2. **WLAN:** Zifferblatt lange drücken → Eltern-Menü → WLAN.
+2. **WLAN:** Zifferblatt 1,5 s gedrückt halten → Eltern-Menü → WLAN.
 3. **Eltern-PIN** festlegen (Eltern-Menü oder Weboberfläche → Regeln).
 4. In der Weboberfläche unter **Hören** Sender und Hörspiele freigeben und unter **Regeln** die Minuten einstellen.
 
@@ -135,8 +134,8 @@ sh tests/run_host.sh                                    # am Rechner: Zifferblat
 ~/.platformio/penv/bin/python tests/test_device.py      # auf der Uhr (USB + WLAN), lautlos; --pin 1234, falls gesetzt
 ```
 
-- **Am Rechner:** `tests/face_preview.cpp` zeichnet das Zifferblatt für alle Wetter, Tag und Nacht, alle Kleidungen und
-  die Schlafenszeit (`tests/out/zifferblatt.png`) und prüft, dass nichts außerhalb des Rasters landet.
+- **Am Rechner:** `tests/face_preview.cpp` zeichnet das Zifferblatt für alle Wetter, Tag und Nacht
+  (`tests/out/zifferblatt.png`) und prüft, dass nichts außerhalb des Rasters landet.
   `tests/check_webui.py` prüft das Skript der Weboberfläche (Syntax, IDs, Routen).
 - **Auf der Uhr:** Zifferblatt mit Testwetter, Freigeben und Sperren, Balance mit vorgetäuschter Neigung (Zeit wird
   gezählt, Tageslimit beendet das Spiel), Hörspiele, Weboberfläche (Seite, Zustand, PIN, 404, Freigabe über die API).
@@ -148,7 +147,7 @@ Fernsteuerung über USB:
 ~/.platformio/penv/bin/python tools/remote.py /dev/cu.usbmodem* tap 233 233 wait 1 shot bild.png
 ```
 
-Befehle im seriellen Monitor: `tap X Y`, `hold X Y`, `swipe l|r|u|d`, `boot`, `pwr`, `shot`, `dump` (alle Texte mit
+Befehle im seriellen Monitor: `tap X Y`, `hold X Y [ms]`, `swipe l|r|u|d`, `boot`, `pwr`, `shot`, `dump` (alle Texte mit
 Lage), `status`, `page apps|music|game|control|parent`, `home`, `open game|radio|stories`, `browse radio|stories`,
 `unlock game 15` (Minuten, −1 = bis zur Bettzeit), `lock radio`, `used stories 30` (heute genutzte Minuten),
 `weather 63 9 day|night` (Testwetter, `weather off`), `level 3`, `tilt 0.3 -0.2` / `tilt off`, `vol 40`,

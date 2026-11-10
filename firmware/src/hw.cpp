@@ -276,9 +276,21 @@ static void touchRead(lv_indev_t* in, lv_indev_data_t* data) {
   trackStroke(data);
 }
 
+static uint32_t holdUntil = 0;  // „hold X Y MS“: so lange gedrückt halten
+static int16_t holdX, holdY;
+
 static void touchReadRaw(lv_indev_t*, lv_indev_data_t* data) {
   static int16_t lx = 0, ly = 0;
   static bool swallow = false;
+  if (holdUntil) {
+    bool down = (int32_t)(millis() - holdUntil) < 0;
+    if (!down) holdUntil = 0;
+    data->point.x = holdX;
+    data->point.y = holdY;
+    data->state = down ? LV_INDEV_STATE_PRESSED : LV_INDEV_STATE_RELEASED;
+    hwActivity();
+    return;
+  }
   if (fTail != fHead) {
     Fake f = fake[fTail++ % 48];
     data->point.x = f.x;
@@ -366,6 +378,10 @@ static void handleLine(char* line) {
   if (sscanf(line, "tap %d %d", &x, &y) == 2) {
     for (int i = 0; i < 3; i++) fakePush(x, y, true);
     fakePush(x, y, false);
+  } else if (int ms; sscanf(line, "hold %d %d %d", &x, &y, &ms) == 3) {  // gedrückt halten, ms lang
+    holdX = x;
+    holdY = y;
+    holdUntil = millis() + ms;
   } else if (sscanf(line, "hold %d %d", &x, &y) == 2) {
     for (int i = 0; i < 40; i++) fakePush(x, y, true);
     fakePush(x, y, false);

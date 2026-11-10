@@ -6,7 +6,6 @@
 #include <esp_sleep.h>
 #include <esp_timer.h>
 #include "config.h"
-#include "faceart.h"
 #include "hw.h"
 #include "kids.h"
 #include "music.h"
@@ -191,7 +190,7 @@ nav button.sel{background:rgba(236,100,54,.14);color:var(--acc)}
 
 <div class="tab" id="t-rules">
  <div id="rules"></div>
- <section><h2>Schlafenszeit</h2><p class="note">Von der Bettzeit bis zum Aufstehen ist alles gesperrt. Das Zifferblatt zeigt das Kind im Bett.</p>
+ <section><h2>Schlafenszeit</h2><p class="note">Von der Bettzeit bis zum Aufstehen ist alles gesperrt, das Display gedimmt.</p>
   <div class="two"><div><label class="f" for="kw">Aufstehen</label><input type="time" id="kw"></div><div><label class="f" for="kb">Bettzeit</label><input type="time" id="kb"></div></div>
   <label class="f" for="kstory">Einschlafhören nach der Bettzeit</label>
   <select id="kstory"><option value="0">gar nicht – Hören endet zur Bettzeit</option><option value="15">15 Minuten</option><option value="30">30 Minuten</option><option value="45">45 Minuten</option><option value="60">1 Stunde</option></select>
@@ -199,7 +198,7 @@ nav button.sel{background:rgba(236,100,54,.14);color:var(--acc)}
   <div class="row"><div class="t"><b>Nachtruhe</b><small>Tiefschlaf nach dem Einschlafhören bis zum Aufstehen – spart viel Akku, die Uhr ist dann nicht erreichbar</small></div><label class="sw"><input type="checkbox" id="pnight"><span></span></label></div></section>
  <section><h2>Lautstärke</h2><div class="row"><div class="t"><b>Höchstens <span id="kvv"></span> %</b></div></div><input type="range" id="kv" min="10" max="100" step="5"></section>
  <section><h2>Eltern-PIN</h2><p class="note" id="pinst"></p><label class="f" for="kpin">Neue PIN (4–8 Ziffern)</label><input id="kpin" inputmode="numeric" maxlength="8" autocomplete="off"><button class="wide" id="kpingo">PIN speichern</button>
-  <p class="note">Mit der PIN schaltest du auf der Uhr Apps frei (antippen, PIN eingeben, Dauer wählen) und kommst ins Eltern-Menü (Zifferblatt lange drücken). Die Ziffern stehen jedes Mal woanders.</p></section>
+  <p class="note">Mit der PIN schaltest du auf der Uhr Apps frei (antippen, PIN eingeben, Dauer wählen) und kommst ins Eltern-Menü (Zifferblatt 1,5 s gedrückt halten). Die Ziffern stehen jedes Mal woanders.</p></section>
  <section><h2>Balance</h2><p class="note" id="grec"></p><button class="wide ghost" id="greset">Rekorde zurücksetzen</button></section>
 </div>
 
@@ -314,7 +313,7 @@ function render(){const s=S,k=s.kids;
  const bc=s.battery<0||s.charging?'g':s.battery<=20?'r':s.battery<=40?'y':'g';
  $('stat').innerHTML=`<span class="chip ${bc}">${s.battery<0?'USB':s.battery+' %'}${s.charging?' ⚡':''}</span><span class="chip">${s.ssid?esc(s.ssid):'offline'}</span>`+(s.weather?`<span class="chip">${s.weather.temp}° ${esc(s.weather.text)}</span>`:'');
  $('apps').innerHTML=s.apps.map(appCard).join('');week();
- $('today').innerHTML=(s.weather?`<span>Wetter</span><span>${s.weather.temp} °C, ${esc(s.weather.text)}</span><span>Anziehen</span><span>${esc(s.weather.outfit)}</span>`:'')+
+ $('today').innerHTML=(s.weather?`<span>Wetter</span><span>${s.weather.temp} °C, ${esc(s.weather.text)}</span>`:'')+
   `<span>Bettzeit</span><span>${hm(k.bed)}${k.storyMin?' (+'+k.storyMin+' Min. Einschlafhören)':''}</span><span>Aufstehen</span><span>${hm(k.wake)}</span>`;
  rules();
  if(!focused('kw'))$('kw').value=hm(k.wake);if(!focused('kb'))$('kb').value=hm(k.bed);if(!focused('kstory'))$('kstory').value=k.storyMin;
@@ -564,11 +563,6 @@ static void state() {
     JsonObject wo = d["weather"].to<JsonObject>();
     wo["temp"] = (int)lroundf(w.temp);
     wo["text"] = weather::text(w.code);
-    faceart::Scene s{};
-    s.weather = true;
-    s.sky = faceart::skyOf(w.code);
-    s.temp = (int)lroundf(w.temp);
-    wo["outfit"] = faceart::outfitText(faceart::outfit(s));
   }
 
   music::State ms = music::state();

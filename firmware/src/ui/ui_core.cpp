@@ -644,7 +644,11 @@ void tick() {
   }
 }
 
+// Display wieder an: Eltern-Menü und offene Freigabe-Dialoge sind dann zu – sonst fände das Kind sie offen vor
 void wake() {
+  closeLockDialogs();
+  for (int i = 0; i < depth; i++)
+    if (stack[i].page == &PAGE_PARENT) { home(); return; }
   const Page* p = top();
   if (p && p->resume) p->resume();
 }

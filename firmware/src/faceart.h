@@ -1,7 +1,5 @@
 // Zifferblatt als 8-Bit-Bild: große Uhrzeit und Wochentag über einer Wetterszene – Sonne, Mond und Sterne, Wolken,
-// Regen, Gewitter, Schnee oder Nebel, je nach aktuellem Wetter und Tageszeit. Unten steht ein Kind, angezogen wie
-// es das Wetter verlangt (T-Shirt, Pulli, Jacke, Wintersachen, Regenjacke mit Schirm), daneben die Temperatur.
-// Zur Schlafenszeit liegt es im Bett.
+// Regen, Gewitter, Schnee oder Nebel, je nach aktuellem Wetter und Tageszeit. Auf der Wiese die Temperatur.
 // Reines Zeichnen in ein Raster (ohne LVGL und Arduino), damit sich alle Wetter auch am Rechner als Vorschau
 // rendern lassen (tests/face_preview.cpp).
 #pragma once
@@ -16,8 +14,6 @@ enum Sky : uint8_t { CLEAR, PARTLY, CLOUDY, FOG, DRIZZLE, RAIN, SNOW, STORM, SKI
 Sky skyOf(int wmo);              // WMO-Wettercode (Open-Meteo) → Szene
 bool heavyOf(int wmo);           // starker Regen bzw. Schnee
 
-enum Outfit : uint8_t { HOT, WARM, MILD, COOL, COLD, RAINY, SNOWY, OUTFITS };
-
 struct Scene {
   bool weather;       // Wetter bekannt (sonst: heiter, ohne Temperatur)
   Sky sky;
@@ -28,15 +24,12 @@ struct Scene {
   int hour, minute;
   int wday;           // 0 = Sonntag
   int mday, month;    // 1 … 31, 1 … 12
-  bool sleeping;      // Schlafenszeit: das Kind liegt im Bett
   int battery;        // %, −1 = kein Akku
   bool charging;
   bool playing;       // Musik läuft
   int frame;          // Animationsschritt
 };
 
-Outfit outfit(const Scene& s);
-const char* outfitText(Outfit o);  // „T-Shirt und kurze Hose“ … (für die Weboberfläche)
 void draw(uint16_t* px, const Scene& s);  // füllt das ganze Raster S × S (außerhalb des Kreises schwarz)
 
 }  // namespace faceart

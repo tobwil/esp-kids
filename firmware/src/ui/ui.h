@@ -77,6 +77,7 @@ void newPin();                  // neue Eltern-PIN an der Uhr festlegen (zweimal
 // App öffnen: frei → gleich los; gesperrt → Eltern-PIN, dann wie lange freigeben
 void openApp(quota::App a);
 void unlockDialog(quota::App a);  // „wie lange freigeben?“ (Eltern-Menü, PIN schon eingegeben)
+void closeLockDialogs();          // PIN-Feld und „wie lange?“ schließen (Display ging an)
 
 // Lautstärke: großer Regler (interactive) bzw. nur Anzeige beim Drehen am Rand
 void volumeShow(bool interactive);

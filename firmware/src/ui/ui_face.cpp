@@ -1,9 +1,8 @@
-// Zifferblatt: das 8-Bit-Bild aus faceart.cpp (Uhrzeit, Wetter, Kind), ×4 vergrößert.
-//   Antippen: Apps (läuft Musik: die Wiedergabe) · lange drücken: Eltern-Menü (mit PIN)
+// Zifferblatt: das 8-Bit-Bild aus faceart.cpp (Uhrzeit, Wetter), ×4 vergrößert.
+//   Antippen: Apps (läuft Musik: die Wiedergabe) · 1,5 s gedrückt halten: Eltern-Menü (mit PIN)
 //   hochwischen: Apps · runterwischen: Kontrollzentrum · am Rand drehen: Lautstärke (wenn Musik läuft)
 #include <time.h>
 #include "../faceart.h"
-#include "../kids.h"
 #include "../music.h"
 #include "../net.h"
 #include "../weather.h"
@@ -39,7 +38,6 @@ void render(int f) {
   s.heavy = faceart::heavyOf(code);
   s.temp = testCode >= 0 ? testTemp : (int)lroundf(w.temp);
   s.day = testCode >= 0 ? testDay : w.ok ? w.day : (t.tm_hour >= 7 && t.tm_hour < 19);
-  s.sleeping = kids::night();
   s.battery = hwBattery();
   s.charging = hwCharging();
   s.playing = music::state().playing;
@@ -75,11 +73,22 @@ void build(lv_obj_t* scr) {
     if (music::state().active) push(&PAGE_MUSIC);
     else push(&PAGE_APPS);
   }, LV_EVENT_SHORT_CLICKED, nullptr);
-  lv_obj_add_event_cb(touch, [](lv_event_t*) {
-    if (bezelMoved()) return;
+  // Eltern-Menü: 1,5 s ruhig gedrückt halten (nicht beim Wischen oder Drehen am Rand)
+  lv_obj_add_event_cb(touch, [](lv_event_t* e) {
+    static uint32_t at = 0;
+    static lv_point_t start;
+    static bool fired = false;
+    lv_event_code_t code = lv_event_get_code(e);
+    if (code != LV_EVENT_PRESSED && code != LV_EVENT_PRESSING) return;
+    lv_point_t p;
+    lv_indev_get_point(lv_indev_active(), &p);
+    if (code == LV_EVENT_PRESSED) { at = millis(); start = p; fired = false; return; }
+    if (fired || bezelMoved() || abs(p.x - start.x) > 20 || abs(p.y - start.y) > 20) { fired = true; return; }
+    if (millis() - at < 1500) return;
+    fired = true;
     lv_indev_wait_release(lv_indev_active());
     askPin("Eltern-Menü", []() { push(&PAGE_PARENT); });
-  }, LV_EVENT_LONG_PRESSED, nullptr);
+  }, LV_EVENT_ALL, nullptr);
   bezel(touch, []() { return music::state().active; });
   lastFrame = -1;
   render(0);

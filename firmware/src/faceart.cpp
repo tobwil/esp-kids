@@ -319,15 +319,15 @@ void ground(const Scene& s) {
     static const uint32_t COL[] = {0xff5f7a, 0xffd23f, 0xffffff, 0xb592ff};
     for (int i = 0; i < 7; i++) {
       uint32_t h = hash(i * 41 + 7);
-      int x = 44 + h % 70, y = HZ + 6 + (h >> 8) % 20;
-      if (x > 56 && x < 100 && y < HZ + 22) continue;  // nicht unter die Temperatur
+      int x = 10 + h % 96, y = HZ + 4 + (h >> 8) % 22;
+      if (x > 36 && x < 82) continue;  // nicht unter die Temperatur
       put(x, y + 1, rgb(0x2e7d32));
       put(x, y, rgb(COL[i % 4]));
       put(x - 1, y, rgb(0xffe08a));
     }
   }
   if (s.sky == RAIN || s.sky == DRIZZLE || s.sky == STORM) {  // Pfützen mit Ringen
-    static const int P[][3] = {{88, 104, 9}, {50, 96, 6}};
+    static const int P[][3] = {{26, 96, 8}, {92, 99, 7}};
     for (auto& p : P) {
       for (int y = -2; y <= 2; y++)
         for (int x = -p[2]; x <= p[2]; x++)
@@ -339,163 +339,6 @@ void ground(const Scene& s) {
       }
     }
   }
-}
-
-// ------------------------------------------------------------------ Kind
-
-// H Haare, S Haut, E Auge, M Mund, T Oberteil, A Ärmel, K Hand, B Hose oben, L Bein unten, F Schuh
-const char* const KID[] = {
-    "...HHHHH...", "..HHHHHHH..", "..HSSSSSH..", "..SESSSES..", "..SSSSSSS..", "..SSMMMSS..", "...SSSSS...",
-    "....SSS....", "..TTTTTTT..", ".ATTTTTTTA.", ".ATTTTTTTA.", ".ATTTTTTTA.", ".KTTTTTTTK.", "..BBBBBBB..",
-    "..BBB.BBB..", "..LLL.LLL..", "..LLL.LLL..", "..LLL.LLL..", "..FFF.FFF..", ".FFFF.FFFF.",
-};
-constexpr int KW = 11, KH = 20;
-
-struct Look {
-  uint32_t top, sleeve, hand, pants, legs, shoes;
-  bool shortSleeves;
-};
-
-Look lookOf(Outfit o) {
-  constexpr uint32_t SKIN = 0xf2c29b;
-  switch (o) {
-    case HOT: return {0xff5a5a, 0xff5a5a, SKIN, 0x3d7bd9, SKIN, 0xffffff, true};
-    case WARM: return {0xffa53c, 0xffa53c, SKIN, 0x3d5a99, 0x3d5a99, 0xffffff, true};
-    case MILD: return {0x47c45b, 0x47c45b, SKIN, 0x3d5a99, 0x3d5a99, 0x8b5a2b, false};
-    case COOL: return {0x3d7bd9, 0x3d7bd9, SKIN, 0x2b3a66, 0x2b3a66, 0x6b4423, false};
-    case COLD: return {0xe0483e, 0xe0483e, 0xffd23f, 0x2b3a66, 0x2b3a66, 0x4a3020, false};
-    case RAINY: return {0xffd23f, 0xffd23f, SKIN, 0x2b3a66, 0x2fbf71, 0x2fbf71, false};
-    case SNOWY: return {0x8a5cf0, 0x8a5cf0, 0xff5f7a, 0x2b3a66, 0x2b3a66, 0x4a3020, false};
-    default: return {0x47c45b, 0x47c45b, SKIN, 0x3d5a99, 0x3d5a99, 0x8b5a2b, false};
-  }
-}
-
-// dunkler Rand um alles, was in der Maske steht
-void outline(const uint8_t* mask, int ox, int oy, int w, int h) {
-  for (int y = -1; y <= h; y++)
-    for (int x = -1; x <= w; x++) {
-      auto in = [&](int i, int j) { return i >= 0 && j >= 0 && i < w && j < h && mask[j * w + i]; };
-      if (in(x, y)) continue;
-      if (in(x - 1, y) || in(x + 1, y) || in(x, y - 1) || in(x, y + 1)) put(ox + x, oy + y, INK);
-    }
-}
-
-void umbrella(int x, int y) {  // Griff in der rechten Hand (x, y), Schirm darüber
-  for (int j = y - 13; j <= y; j++) put(x, j, rgb(0x5a3a1e));
-  put(x - 1, y, rgb(0x5a3a1e));
-  int cy = y - 13;
-  for (int j = -6; j <= 0; j++)
-    for (int i = -10; i <= 10; i++) {
-      if (i * i * 36 / 100 + j * j > 36) continue;
-      bool stripe = ((i + 10) / 4) % 2;
-      uint16_t c = stripe ? WHITE : rgb(0xe0483e);
-      if (j == 0 && (i + 10) % 4 == 2) continue;  // gewellter Rand
-      put(x + i, cy + j, c);
-    }
-  // Rand
-  for (int i = -10; i <= 10; i++) {
-    int j = -(int)sqrtf(fmaxf(0, 36 - i * i * 36 / 100.0f)) - 1;
-    put(x + i, cy + j, INK);
-  }
-}
-
-void kid(const Scene& s, int ox, int oy) {
-  Outfit o = outfit(s);
-  Look l = lookOf(o);
-  constexpr uint32_t SKIN = 0xf2c29b;
-  uint8_t mask[(KW + 2) * (KH + 4)] = {};
-  const int MW = KW + 2, MY = 3;  // Maske mit Platz für Mütze und Bommel
-  bool blink = s.frame % 17 == 0;
-  bool hood = o == RAINY, beanie = o == COLD || o == SNOWY, cap = o == HOT;
-  bool shades = o == HOT && s.day && (s.sky == CLEAR || s.sky == PARTLY);
-  for (int y = 0; y < KH; y++)
-    for (int x = 0; x < KW; x++) {
-      char k = KID[y][x];
-      if (k == '.') continue;
-      uint32_t c;
-      switch (k) {
-        case 'H': c = 0x6b3e1f; break;
-        case 'S': c = SKIN; break;
-        case 'E': c = blink ? 0xd9a47e : 0x1e1e28; break;
-        case 'M': c = 0xd35d5d; break;
-        case 'T': c = l.top; break;
-        case 'A': c = l.shortSleeves && y > 9 ? SKIN : l.sleeve; break;
-        case 'K': c = l.hand; break;
-        case 'B': c = l.pants; break;
-        case 'L': c = y >= 15 && (o == RAINY) ? l.shoes : l.legs; break;
-        case 'F': c = l.shoes; break;
-        default: c = 0xff00ff;
-      }
-      if (shades && y == 3 && x >= 3 && x <= 7) c = 0x1e1e28;
-      if (o == COOL && x == 5 && y >= 8 && y <= 12) c = 0x9fc4ff;  // Reißverschluss
-      if (o == RAINY && x == 5 && y >= 8 && y <= 12) c = 0xe0a800;
-      put(ox + x, oy + y, rgb(c));
-      mask[(y + MY) * MW + x + 1] = 1;
-    }
-  auto add = [&](int x, int y, uint32_t c) {
-    put(ox + x, oy + y, rgb(c));
-    if (x + 1 >= 0 && x + 1 < MW && y + MY >= 0 && y + MY < KH + 4) mask[(y + MY) * MW + x + 1] = 1;
-  };
-  if (hood) {  // Kapuze in Jackenfarbe ums Gesicht
-    for (int x = 2; x <= 8; x++) add(x, 0, l.top), add(x, 1, l.top);
-    add(1, 1, l.top);
-    add(9, 1, l.top);
-    for (int y = 2; y <= 6; y++) add(1, y, l.top), add(9, y, l.top);
-    add(2, 2, l.top);
-    add(8, 2, l.top);
-  }
-  if (beanie) {  // Mütze mit Bommel, Schal
-    uint32_t m = o == SNOWY ? 0xffd23f : 0x47c45b;
-    for (int x = 2; x <= 8; x++) add(x, 0, m), add(x, 1, m);
-    for (int x = 3; x <= 7; x++) add(x, -1, m);
-    add(5, -2, 0xffffff);
-    add(4, -2, 0xffffff);
-    add(6, -2, 0xffffff);
-    add(5, -3, 0xffffff);
-    for (int x = 2; x <= 8; x++) add(x, 7, (x % 2) ? 0xffffff : m);
-    add(7, 8, m);
-    add(7, 9, 0xffffff);
-    add(7, 10, m);
-  }
-  if (cap) {  // Schirmmütze
-    for (int x = 2; x <= 8; x++) add(x, 0, 0x3d7bd9), add(x, 1, 0x3d7bd9);
-    for (int x = 7; x <= 10; x++) add(x, 2, 0x2b5aa8);
-  }
-  outline(mask, ox - 1, oy - MY, MW, KH + 4);
-  if (o == RAINY && (s.sky == RAIN || s.sky == STORM)) umbrella(ox + 9, oy + 12);
-}
-
-// Schlafenszeit: das Kind liegt im Bett, darüber schweben Z
-void bed(const Scene& s) {
-  const int x = 12, y = 84;
-  uint16_t wood = rgb(0x9a6232), woodD = rgb(0x6e4220), blanket = rgb(0x6c8cff), blanketD = rgb(0x4f6be0);
-  if (!s.day) { wood = mix(wood, BLACK, 60); blanket = mix(blanket, BLACK, 50); blanketD = mix(blanketD, BLACK, 50); }
-  fill(x, y, 3, 14, wood);            // Kopfteil
-  fill(x + 28, y + 5, 3, 9, wood);    // Fußteil
-  fill(x, y + 10, 31, 2, woodD);      // Rahmen
-  fill(x + 1, y + 12, 2, 2, woodD);
-  fill(x + 28, y + 12, 2, 2, woodD);
-  fill(x + 4, y + 4, 7, 4, WHITE);    // Kissen
-  // Kopf mit geschlossenen Augen
-  fill(x + 5, y + 1, 5, 2, rgb(0x6b3e1f));
-  fill(x + 5, y + 3, 5, 4, rgb(0xf2c29b));
-  put(x + 6, y + 5, rgb(0x7a5a4a));
-  put(x + 8, y + 5, rgb(0x7a5a4a));
-  for (int j = 0; j < 5; j++)          // Decke mit Muster
-    for (int i = 0; i < 18; i++) put(x + 10 + i, y + 5 + j, (i + j) % 4 == 0 ? blanketD : blanket);
-  uint8_t mask[33 * 16] = {};
-  for (int j = 0; j < 16; j++)
-    for (int i = 0; i < 33; i++) {
-      int px2 = x - 1 + i, py = y - 1 + j;
-      uint16_t c = get(px2, py);
-      mask[j * 33 + i] = (i >= 1 && i <= 31 && j >= 1 && j <= 14) &&
-                         (c == wood || c == woodD || c == WHITE || c == blanket || c == blanketD || c == rgb(0xf2c29b) ||
-                          c == rgb(0x6b3e1f) || c == rgb(0x7a5a4a));
-    }
-  outline(mask, x - 1, y - 1, 33, 16);
-  int t = s.frame % 8;  // Z steigen auf
-  smallLabel(x + 14, y - 6 - t, "Z", rgb(0xdfe6ff));
-  if (t > 3) smallLabel(x + 19, y - 12 - (t - 4), "Z", rgb(0xb8c4f0));
 }
 
 // ------------------------------------------------------------------ Akku, Musik
@@ -546,30 +389,6 @@ Sky skyOf(int c) {
 
 bool heavyOf(int c) { return c == 65 || c == 67 || c == 75 || c == 82 || c == 86 || c >= 96; }
 
-Outfit outfit(const Scene& s) {
-  if (!s.weather) return MILD;
-  if (s.sky == SNOW) return SNOWY;
-  if (s.sky == RAIN || s.sky == DRIZZLE || s.sky == STORM) return RAINY;
-  if (s.temp >= 24) return HOT;
-  if (s.temp >= 17) return WARM;
-  if (s.temp >= 10) return MILD;
-  if (s.temp >= 3) return COOL;
-  return COLD;
-}
-
-const char* outfitText(Outfit o) {
-  switch (o) {
-    case HOT: return "T-Shirt, kurze Hose und Kappe";
-    case WARM: return "T-Shirt und lange Hose";
-    case MILD: return "Pulli und lange Hose";
-    case COOL: return "Jacke";
-    case COLD: return "Winterjacke, Mütze, Schal und Handschuhe";
-    case RAINY: return "Regenjacke und Gummistiefel";
-    case SNOWY: return "Schneesachen, Mütze und Stiefel";
-    default: return "";
-  }
-}
-
 void draw(uint16_t* out, const Scene& s) {
   px = out;
   bool flash = s.sky == STORM && s.frame % 14 == 0;
@@ -580,8 +399,6 @@ void draw(uint16_t* out, const Scene& s) {
   clouds(s);
   ground(s);
   if (s.sky == STORM && s.frame % 14 <= 1) lightning(s.frame);
-  if (s.sleeping) bed(s);
-  else kid(s, 22, 78);
   if (s.sky == RAIN || s.sky == DRIZZLE || s.sky == STORM) rain(s);
   if (s.sky == SNOW) snow(s);
   if (s.sky == FOG) fog(s);
@@ -596,13 +413,13 @@ void draw(uint16_t* out, const Scene& s) {
     snprintf(b, sizeof(b), "%s %d.%d.", DAYS[s.wday % 7], s.mday, s.month);
     smallLabel(S / 2, 49, b, rgb(0xfff2c8));
   }
-  // Temperatur neben dem Kind
+  // Temperatur auf der Wiese
   if (s.weather) {
     snprintf(b, sizeof(b), "%d^", s.temp);
-    bigLabel(84, 86, b, 2, WHITE);
+    bigLabel(S / 2 + 2, 80, b, 3, WHITE);
   }
-  battery(S / 2, 106, s);
-  if (s.playing) note(S / 2 + 10, 105, s.frame);
+  battery(S / 2, 107, s);
+  if (s.playing) note(S / 2 + 10, 106, s.frame);
 
   // rund: außerhalb des Zifferblatts schwarz, am Rand ein dunkler Ring
   for (int y = 0; y < S; y++)

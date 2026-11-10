@@ -4,7 +4,7 @@
 // Minuten pro Tag, wie eingestellt ist.
 //
 // Bedienung:
-//   Zifferblatt: antippen oder hochwischen = Apps · runterwischen = Kontrollzentrum · lange drücken = Eltern-Menü
+//   Zifferblatt: antippen oder hochwischen = Apps · runterwischen = Kontrollzentrum · 1,5 s halten = Eltern-Menü
 //   überall: nach rechts wischen = zurück · BOOT kurz = Apps bzw. zurück zum Zifferblatt
 //   PWR kurz = Display an/aus · PWR lang = Ausschalten/Neustart
 #include <Arduino.h>
