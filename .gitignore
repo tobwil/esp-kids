@@ -1,0 +1,11 @@
+.pio/
+.vscode/
+.DS_Store
+__pycache__/
+
+# vom ESP-IDF-Build (custom_sdkconfig) erzeugt
+firmware/.dummy/
+firmware/managed_components/
+firmware/sdkconfig.*
+firmware/dependencies.lock
+tests/out/
