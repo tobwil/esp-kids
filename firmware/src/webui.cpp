@@ -150,8 +150,20 @@ nav button.sel{background:rgba(236,100,54,.14);color:var(--acc)}
 .tab{display:none}.tab.sel{display:block;animation:tin .28s ease}
 @keyframes tin{from{opacity:.6;transform:translateY(8px)}}
 #msg{position:fixed;bottom:calc(96px + env(safe-area-inset-bottom));left:50%;z-index:8;display:none;max-width:90vw;padding:12px 18px;border-radius:16px;background:var(--text);color:var(--bg);font-weight:650;transform:translateX(-50%);box-shadow:0 12px 30px -10px rgba(0,0,0,.45)}
-#lock{position:fixed;inset:0;z-index:9;display:none;flex-direction:column;justify-content:center;max-width:420px;margin:0 auto;padding:24px;background:var(--bg)}
-#lock h1{margin:0 0 4px;font-size:30px;letter-spacing:-.02em}
+/* Zahlenfeld für die Eltern-PIN */
+#lock{position:fixed;inset:0;z-index:9;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(20,16,10,.38);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+#lock.show{display:flex}
+#pcard{width:100%;max-width:330px;padding:24px 22px 18px;border-radius:30px;background:var(--card);box-shadow:0 24px 60px -18px rgba(0,0,0,.5);text-align:center}
+#pcard h1{margin:0;font-size:24px;letter-spacing:-.02em}#pcard .note{margin:4px 0 0}
+#pdots{display:flex;justify-content:center;gap:14px;height:16px;margin:20px 0 6px}
+#pdots i{width:14px;height:14px;border:2px solid var(--dim);border-radius:50%}#pdots i.on{border-color:var(--acc);background:var(--acc)}
+#perr{min-height:20px;color:var(--bad);font-size:14px;font-weight:650}
+#pkeys{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:6px}
+#pkeys button{height:64px;min-height:64px;padding:0;border-radius:22px;background:var(--fill);color:var(--text);font-size:26px;font-weight:650;box-shadow:inset 0 0 0 1px var(--line)}
+#pkeys button.k{background:transparent;box-shadow:none;font-size:22px}
+#pkeys button.go{background:linear-gradient(135deg,var(--acc2),var(--acc));color:#fff;box-shadow:0 8px 18px -10px rgba(236,100,54,.9);font-size:20px}
+#pcancel{margin-top:12px;min-height:40px;background:none;color:var(--dim);box-shadow:none;font-weight:650}
+.shake{animation:shk .35s}@keyframes shk{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 /* Apps mit Zeitkonto */
 .app{border-top:5px solid var(--c)}
 .ah{display:flex;align-items:center;gap:14px}
@@ -197,7 +209,7 @@ nav button.sel{background:rgba(236,100,54,.14);color:var(--acc)}
   <p class="note" id="kstst"></p>
   <div class="row"><div class="t"><b>Nachtruhe</b><small>Tiefschlaf nach dem Einschlafhören bis zum Aufstehen – spart viel Akku, die Uhr ist dann nicht erreichbar</small></div><label class="sw"><input type="checkbox" id="pnight"><span></span></label></div></section>
  <section><h2>Lautstärke</h2><div class="row"><div class="t"><b>Höchstens <span id="kvv"></span> %</b></div></div><input type="range" id="kv" min="10" max="100" step="5"></section>
- <section><h2>Eltern-PIN</h2><p class="note" id="pinst"></p><label class="f" for="kpin">Neue PIN (4–8 Ziffern)</label><input id="kpin" inputmode="numeric" maxlength="8" autocomplete="off"><button class="wide" id="kpingo">PIN speichern</button>
+ <section><h2>Eltern-PIN</h2><p class="note" id="pinst"></p><button class="wide" id="kpingo">PIN festlegen</button>
   <p class="note">Mit der PIN schaltest du auf der Uhr Apps frei (antippen, PIN eingeben, Dauer wählen) und kommst ins Eltern-Menü (Zifferblatt 1,5 s gedrückt halten). Die Ziffern stehen jedes Mal woanders.</p></section>
  <section><h2>Balance</h2><p class="note" id="grec"></p><button class="wide ghost" id="greset">Rekorde zurücksetzen</button></section>
 </div>
@@ -240,17 +252,30 @@ nav button.sel{background:rgba(236,100,54,.14);color:var(--acc)}
 </main>
 <nav id="nav"><button data-t="home" class="sel"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l2.5 1.5"/></svg>Heute</button><button data-t="rules"><svg viewBox="0 0 24 24"><path d="M6 3v18M18 3v18M6 8h4M14 16h4"/><circle cx="12" cy="8" r="2"/><circle cx="12" cy="16" r="2"/></svg>Regeln</button><button data-t="music"><svg viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="17" cy="16" r="3"/></svg>Hören</button><button data-t="dev"><svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Gerät</button></nav>
 <div id="msg"></div>
-<div id="lock"><h1>Eltern-PIN</h1><p class="note">Diese Uhr ist geschützt.</p><input id="lpin" type="password" inputmode="numeric" autocomplete="off"><button class="wide" id="lgo">Entsperren</button></div>
+<div id="lock"><div id="pcard"><h1 id="ptitle">Eltern-PIN</h1><p class="note" id="pnote"></p><div id="pdots"></div><div id="perr"></div>
+ <div id="pkeys"><button>1</button><button>2</button><button>3</button><button>4</button><button>5</button><button>6</button><button>7</button><button>8</button><button>9</button><button class="k" data-k="del" aria-label="Löschen">⌫</button><button>0</button><button class="go" data-k="ok">OK</button></div>
+ <button id="pcancel" hidden>Abbrechen</button></div></div>
 <script>
 const $=id=>document.getElementById(id),val=id=>$(id).value.trim();
 const EMO=['🎱','📻','🎧'],COL=['var(--game)','var(--radio)','var(--story)'],LIM=[0,10,15,20,30,45,60,90,120,180];
-let S=null,pin='',mSrc='radio',mItems=[],mStack=[],mTitle='',mErr='',RC=[],lastTitle=null;
+let S=null,pin='',padVal='',padCb=null,tried=false,mSrc='radio',mItems=[],mStack=[],mTitle='',mErr='',RC=[],lastTitle=null;
 try{pin=localStorage.getItem('pin')||''}catch(e){}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function toast(t){const m=$('msg');m.textContent=t;m.style.display='block';clearTimeout(toast.h);toast.h=setTimeout(()=>m.style.display='none',2500)}
 async function api(p,b){const o={headers:{'X-Pin':pin}};if(b!==undefined){o.method='POST';o.body=JSON.stringify(b)}
- const r=await fetch('/api/'+p,o);if(r.status==401){$('lock').style.display='flex';throw new Error('pin')}
- $('lock').style.display='none';return r.json().catch(()=>({}))}
+ const r=await fetch('/api/'+p,o);if(r.status==401){askPin();throw new Error('pin')}
+ if(padCb==unlockWith)padClose();return r.json().catch(()=>({}))}
+// Zahlenfeld: Eltern-PIN abfragen bzw. neu festlegen (4–8 Ziffern, auch mit der Tastatur)
+function padOpen(title,note,cb,cancel){$('ptitle').textContent=title;$('pnote').textContent=note;padVal='';padCb=cb;$('perr').textContent='';$('pcancel').hidden=!cancel;padDots();$('lock').classList.add('show')}
+function padClose(){$('lock').classList.remove('show');padCb=null}
+function padDots(){$('pdots').innerHTML=Array.from({length:Math.max(4,padVal.length)},(_,i)=>`<i class="${i<padVal.length?'on':''}"></i>`).join('')}
+function padErr(t){padVal='';padDots();$('perr').textContent=t;const c=$('pcard');c.classList.remove('shake');void c.offsetWidth;c.classList.add('shake')}
+function padKey(k){if(!padCb)return;$('perr').textContent='';
+ if(k=='del')padVal=padVal.slice(0,-1);
+ else if(k=='ok'){if(padVal.length<4)return padErr('Mindestens 4 Ziffern');const v=padVal;padVal='';padDots();return padCb(v)}
+ else if(padVal.length<8)padVal+=k;padDots()}
+function unlockWith(v){pin=v;tried=true;try{localStorage.setItem('pin',v)}catch(e){}load()}
+function askPin(){if(padCb==unlockWith){if(tried){tried=false;padErr('Falsche PIN')}return}if(!padCb)padOpen('Eltern-PIN','Diese Uhr ist geschützt.',unlockWith,false)}
 async function post(p,b,quiet){try{const j=await api(p,b);if(!quiet)toast(j.msg||'Gespeichert');await load()}catch(e){if(e.message!='pin')toast('Uhr nicht erreichbar')}}
 const hm=m=>String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0'),mins=v=>{const[a,b]=v.split(':');return+a*60+ +b};
 const clock=t=>new Date(t*1000).toLocaleTimeString('de',{hour:'2-digit',minute:'2-digit'});
@@ -319,7 +344,7 @@ function render(){const s=S,k=s.kids;
  if(!focused('kw'))$('kw').value=hm(k.wake);if(!focused('kb'))$('kb').value=hm(k.bed);if(!focused('kstory'))$('kstory').value=k.storyMin;
  $('kstst').textContent=k.storyMin?`Ab ${hm(k.bed)} darf noch ${k.storyMin} Minuten gehört werden, dann wird sanft ausgeblendet.`:`Ab ${hm(k.bed)} wird ausgeblendet.`;
  $('pnight').checked=s.power.night;if(!focused('kv')){$('kv').value=k.maxVol;$('kvv').textContent=k.maxVol}
- $('pinst').innerHTML=k.pin?'<span class="ok">PIN ist gesetzt</span> – diese Seite und die Uhr fragen danach.':'<span class="bad">Noch keine PIN.</span>';
+ $('pinst').innerHTML=k.pin?'<span class="ok">PIN ist gesetzt</span> – diese Seite und die Uhr fragen danach.':'<span class="bad">Noch keine PIN.</span>';$('kpingo').textContent=k.pin?'PIN ändern':'PIN festlegen';
  $('grec').innerHTML=`Rekorde – Ins Ziel: ${s.game.level?'<b>Stufe '+s.game.level+'</b>':'noch keiner'} · Alle Kugeln: ${s.game.ms?'<b>'+(s.game.ms/1000).toFixed(1).replace('.',',')+' s</b>':'noch keiner'}`;
  const mu=s.music;$('np').innerHTML=mu.active?`<b>${mu.playing?'▶':'⏸'} ${esc(mu.title)}</b>${esc(mu.artist)}${mu.dur?' · '+Math.floor(mu.pos/60)+':'+String(Math.floor(mu.pos%60)).padStart(2,'0')+' / '+Math.floor(mu.dur/60)+':'+String(mu.dur%60).padStart(2,'0'):''}${mu.msg?'<br><span class="bad">'+esc(mu.msg)+'</span>':''}`:'Gerade läuft nichts.';
  if(!focused('mvol')){$('mvol').value=mu.volume;$('mvolv').textContent=mu.volume}
@@ -357,9 +382,12 @@ const kids=p=>post('kids',p,true);
 $('kw').onchange=()=>kids({wake:mins($('kw').value)});$('kb').onchange=()=>kids({bed:mins($('kb').value)});
 $('kstory').onchange=e=>kids({storyMin:+e.target.value});$('pnight').onchange=e=>post('power',{night:e.target.checked});
 $('kv').oninput=e=>$('kvv').textContent=e.target.value;$('kv').onchange=e=>kids({maxVol:+e.target.value});
-$('kpingo').onclick=()=>{const p=val('kpin');if(!/^\d{4,8}$/.test(p))return toast('4–8 Ziffern');
- api('kids/pin',{pin:p}).then(j=>{pin=p;try{localStorage.setItem('pin',p)}catch(e){}$('kpin').value='';toast(j.msg);load()})};
-$('lgo').onclick=()=>{pin=val('lpin');try{localStorage.setItem('pin',pin)}catch(e){}load()};
+$('kpingo').onclick=()=>padOpen('Neue Eltern-PIN','4 bis 8 Ziffern',first=>padOpen('PIN wiederholen','Zur Sicherheit noch einmal',again=>{
+ if(again!=first)return padErr('Nicht gleich – bitte noch einmal');
+ api('kids/pin',{pin:again}).then(j=>{pin=again;try{localStorage.setItem('pin',again)}catch(e){}padClose();toast(j.msg);load()}).catch(()=>{})},true),true);
+$('pkeys').onclick=e=>{const b=e.target.closest('button');if(b)padKey(b.dataset.k||b.textContent)};
+$('pcancel').onclick=padClose;
+document.addEventListener('keydown',e=>{if(!padCb)return;if(/^\d$/.test(e.key))padKey(e.key);else if(e.key=='Backspace')padKey('del');else if(e.key=='Enter')padKey('ok');else if(e.key=='Escape'&&!$('pcancel').hidden)padClose();else return;e.preventDefault()});
 $('greset').onclick=()=>confirm('Balance-Rekorde löschen?')&&post('game/reset',{});
 $('findgo').onclick=()=>post('find',{on:true});
 $('msrc').onclick=e=>{const b=e.target.closest('button');if(!b)return;mSrc=b.dataset.v;[...$('msrc').children].forEach(x=>x.classList.toggle('sel',x==b));
