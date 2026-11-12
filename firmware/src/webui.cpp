@@ -17,6 +17,7 @@
 #include "ui/ui.h"
 
 extern const char TF_BOARD_TAG[];  // main.cpp
+const char* resetText();           // main.cpp
 
 namespace webui {
 
@@ -361,7 +362,7 @@ function render(){const s=S,k=s.kids;
  if(!focused('dbr')){$('dbr').value=s.display.brightness;$('dbrv').textContent=s.display.brightness}
  if(!focused('doff'))$('doff').value=[10,15,30,60,120].includes(s.display.screenOff)?s.display.screenOff:30;
  $('wifi').innerHTML=s.known.map(n=>row(n,n===s.ssid?'verbunden':'',btn('Vergessen',`post("wifi/forget",{ssid:${J(n)}})`))).join('')||'<p class="note">Keine Netze gespeichert</p>';
- $('info').innerHTML=`<span>Adresse</span><span>${esc(s.ip)} · ${esc(s.host)}.local</span><span>WLAN</span><span>${esc(s.ssid||'–')}${s.rssi?' ('+s.rssi+' dBm)':''}</span><span>Version</span><span>${esc(s.version)}</span>`;
+ $('info').innerHTML=`<span>Adresse</span><span>${esc(s.ip)} · ${esc(s.host)}.local</span><span>WLAN</span><span>${esc(s.ssid||'–')}${s.rssi?' ('+s.rssi+' dBm)':''}</span><span>Zugangspunkt</span><span>${esc(s.ap||'–')}</span><span>WLAN-Abbrüche</span><span>${esc(s.drops)}</span><span>Version</span><span>${esc(s.version)}</span><span>Läuft seit</span><span>${s.uptime>=3600?Math.floor(s.uptime/3600)+' h '+Math.floor(s.uptime/60)%60+' min':Math.floor(s.uptime/60)+' min'} (Start: ${esc(s.reset)})</span>`;
  $('fwst').textContent=`Version ${s.version} · ${s.board} · gebaut ${s.built}`}
 async function load(){try{S=await api('state');render();if(S.music.title!==lastTitle){lastTitle=S.music.title;loadRecent()}}catch(e){if(e.message!='pin')$('stat').innerHTML='<span class="chip r">Uhr nicht erreichbar</span>'}}
 // Akku-Verlauf: Prozent über Uhrzeit; Entladen orange, Laden grün, Lücken (Uhr aus, Tiefschlaf) gestrichelt
@@ -555,6 +556,10 @@ static void state() {
   d["ssid"] = netOnline() ? netSsid() : "";
   d["rssi"] = netOnline() ? netRssi() : 0;
   d["night"] = kids::night();
+  d["uptime"] = millis() / 1000;
+  d["reset"] = resetText();
+  d["ap"] = netAp();
+  d["drops"] = netDrops();
   JsonArray k = d["known"].to<JsonArray>();
   for (int i = 0; i < knownCount; i++) k.add(known[i].ssid);
 

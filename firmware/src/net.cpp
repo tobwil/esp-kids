@@ -3,6 +3,7 @@
 #include <WiFi.h>
 #include "config.h"
 #include "hw.h"
+#include "power.h"
 #include "settings.h"
 
 // Zuletzt benutztes Netz mit Kanal und Router-Adresse, übersteht den Tiefschlaf: schnelles Neuverbinden
@@ -10,7 +11,7 @@ RTC_DATA_ATTR static char rtcSsid[33];
 RTC_DATA_ATTR static uint8_t rtcBssid[6];
 RTC_DATA_ATTR static int32_t rtcChannel = 0;
 
-enum WifiState : uint8_t { W_IDLE, W_TRYING, W_SCANNING, W_USERSCAN };
+enum WifiState : uint8_t { W_IDLE, W_TRYING, W_SCANNING, W_USERSCAN, W_ROAMING };
 static WifiState wst = W_IDLE;
 static uint32_t wAt = 0;
 static bool wasOnline = false, manual = false, ntpStarted = false, mdnsStarted = false;
@@ -21,6 +22,14 @@ static const uint32_t RETRY_MIN = 10000, RETRY_SCREEN = 60000, RETRY_DARK = 3000
 static uint32_t retryEvery = RETRY_MIN;
 static uint8_t failedTries = 0;
 static bool lastScreen = true;
+// Repeater/Mesh: bei schwachem Empfang nach einem besseren Zugangspunkt desselben Netzes suchen
+static const int ROAM_WEAK = -72, ROAM_BETTER = 8;       // dBm: ab wann schwach, um wie viel besser der neue sein muss
+static const uint32_t ROAM_AFTER = 20000, ROAM_EVERY = 90000, ROAM_NOTHING = 300000;
+static uint32_t weakSince = 0, roamAt = 0, roamPause = ROAM_EVERY;  // nichts Besseres gefunden: seltener suchen
+// Abbrüche (für die Weboberfläche)
+static uint16_t drops = 0;
+static uint8_t lastReason = 0;
+static uint32_t lastDropAt = 0;
 
 
 const char* netHost() {
@@ -41,12 +50,50 @@ void netManual(bool on) { manual = on; }
 
 bool timeValid() { return time(nullptr) > 1700000000; }
 
-void netConnect(const char* ssid, const char* pass) {
+// Ohne bssid sucht der WLAN-Treiber alle Kanäle ab und nimmt den stärksten Zugangspunkt (netBegin)
+void netConnect(const char* ssid, const char* pass, const uint8_t* bssid, int32_t channel) {
   WiFi.disconnect();
   delay(20);
-  WiFi.begin(ssid, strlen(pass) ? pass : nullptr);
+  WiFi.begin(ssid, strlen(pass) ? pass : nullptr, channel, bssid);
   wst = W_TRYING;
   wAt = millis();
+}
+
+static String mac(const uint8_t* b) {
+  char t[18];
+  snprintf(t, sizeof(t), "%02X:%02X:%02X:%02X:%02X:%02X", b[0], b[1], b[2], b[3], b[4], b[5]);
+  return t;
+}
+
+String netAp() { return netOnline() ? mac(WiFi.BSSID()) + " · Kanal " + String(WiFi.channel()) : ""; }
+
+// Gründe nach IEEE 802.11 bzw. ESP-IDF (die häufigsten)
+static const char* reasonText(uint8_t r) {
+  switch (r) {
+    case WIFI_REASON_BEACON_TIMEOUT: return "Signal weg";
+    case WIFI_REASON_NO_AP_FOUND: return "Netz nicht gefunden";
+    case WIFI_REASON_AUTH_EXPIRE: case WIFI_REASON_AUTH_FAIL: case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT: return "Anmeldung fehlgeschlagen";
+    case WIFI_REASON_ASSOC_LEAVE: return "selbst getrennt";
+    case WIFI_REASON_DISASSOC_DUE_TO_INACTIVITY: return "vom Router getrennt (inaktiv)";
+    case WIFI_REASON_AUTH_LEAVE: return "vom Router getrennt";
+    case WIFI_REASON_CONNECTION_FAIL: return "Verbindung fehlgeschlagen";
+    default: return "anderer Grund";
+  }
+}
+
+void netRoamNow() {  // Test über USB: gleich nach einem besseren Zugangspunkt suchen
+  if (!netOnline() || wst != W_IDLE) return;
+  roamAt = millis();
+  WiFi.scanDelete();
+  WiFi.scanNetworks(true, false, false, 120);
+  wst = W_ROAMING;
+  wAt = millis();
+}
+
+String netDrops() {
+  if (!drops) return "keine";
+  uint32_t ago = (millis() - lastDropAt) / 60000;
+  return String(drops) + " · zuletzt vor " + String(ago) + " min: " + reasonText(lastReason) + " (" + String(lastReason) + ")";
 }
 
 static void startScan() {
@@ -104,10 +151,47 @@ void netPoll() {
       failedTries = 0;
       if (!ntpStarted) { configTzTime(TIMEZONE, "pool.ntp.org", "time.cloudflare.com"); ntpStarted = true; }
       if (!mdnsStarted) mdnsStarted = MDNS.begin(netHost());
-      Serial.printf("WLAN: verbunden mit %s, IP %s, Kanal %d\n", rtcSsid, netIp().c_str(), (int)rtcChannel);
+      weakSince = 0;
+      Serial.printf("WLAN: verbunden mit %s über %s, %d dBm, IP %s\n", rtcSsid, netAp().c_str(), WiFi.RSSI(), netIp().c_str());
+    }
+    // Roaming: seit 20 s schwacher Empfang → im Hintergrund nach einem besseren Zugangspunkt desselben Netzes suchen
+    if (wst == W_ROAMING) {
+      int n = WiFi.scanComplete();
+      if (n == WIFI_SCAN_RUNNING && now - wAt < 15000) return;
+      int best = -1, bestRssi = WiFi.RSSI() + ROAM_BETTER - 1;
+      for (int i = 0; i < n; i++)
+        if (WiFi.SSID(i) == rtcSsid && memcmp(WiFi.BSSID(i), WiFi.BSSID(), 6) && WiFi.RSSI(i) > bestRssi) { best = i; bestRssi = WiFi.RSSI(i); }
+      if (best >= 0) {
+        uint8_t b[6];
+        memcpy(b, WiFi.BSSID(best), 6);
+        int32_t ch = WiFi.channel(best);
+        Serial.printf("WLAN: wechsle von %d dBm zu %s (%d dBm)\n", WiFi.RSSI(), mac(b).c_str(), bestRssi);
+        WiFi.scanDelete();
+        const char* pw = knownPass(rtcSsid);
+        netConnect(rtcSsid, pw ? pw : "", b, ch);
+        roamPause = ROAM_EVERY;
+        return;
+      }
+      WiFi.scanDelete();
+      wst = W_IDLE;
+      roamPause = ROAM_NOTHING;
+      return;
+    }
+    int rssi = WiFi.RSSI();
+    if (rssi > ROAM_WEAK || rssi == 0) weakSince = 0;
+    else if (!weakSince) { weakSince = now; roamPause = ROAM_EVERY; }
+    // nur wenn die Uhr ohnehin wach ist (Display an oder es läuft etwas) – eine Suche kostet Strom
+    if (weakSince && now - weakSince > ROAM_AFTER && now - roamAt > roamPause && wst == W_IDLE && !manual && !pwr::dozing()) {
+      roamAt = now;
+      Serial.printf("WLAN: schwacher Empfang (%d dBm), suche besseren Zugangspunkt\n", rssi);
+      WiFi.scanDelete();
+      WiFi.scanNetworks(true, false, false, 120);
+      wst = W_ROAMING;
+      wAt = now;
     }
     return;
   }
+  if (wst == W_ROAMING) { WiFi.scanDelete(); wst = W_IDLE; }
   if (wasOnline) {
     wasOnline = false;
     Serial.println("WLAN: Verbindung verloren");
@@ -142,11 +226,14 @@ void netPoll() {
     int best = -1, bestRssi = -1000;
     for (int i = 0; i < n; i++)
       if (knownIndex(WiFi.SSID(i).c_str()) >= 0 && WiFi.RSSI(i) > bestRssi) { best = i; bestRssi = WiFi.RSSI(i); }
-    if (best >= 0) {
+    if (best >= 0) {  // genau diesen Zugangspunkt nehmen (bei Repeatern gibt es mehrere mit demselben Namen)
       String ss = WiFi.SSID(best);
-      Serial.printf("WLAN: versuche %s (%d dBm)\n", ss.c_str(), bestRssi);
+      uint8_t b[6];
+      memcpy(b, WiFi.BSSID(best), 6);
+      int32_t ch = WiFi.channel(best);
+      Serial.printf("WLAN: versuche %s über %s (%d dBm)\n", ss.c_str(), mac(b).c_str(), bestRssi);
       WiFi.scanDelete();
-      netConnect(ss.c_str(), knownPass(ss.c_str()));
+      netConnect(ss.c_str(), knownPass(ss.c_str()), b, ch);
     } else {
       WiFi.scanDelete();
       wst = W_IDLE;
@@ -160,6 +247,15 @@ void netBegin() {
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(false);
   WiFi.setSleep(false);  // Modem-Schlaf schaltet power.cpp, sobald nichts gestreamt wird
+  // Repeater/Mesh: alle Kanäle absuchen und den stärksten Zugangspunkt nehmen (sonst den erstbesten)
+  WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+  WiFi.setSortMethod(WIFI_CONNECT_AP_BY_SIGNAL);
+  WiFi.onEvent([](arduino_event_id_t, arduino_event_info_t info) {
+    drops++;
+    lastReason = info.wifi_sta_disconnected.reason;
+    lastDropAt = millis();
+    Serial.printf("WLAN: getrennt, Grund %u (%s)\n", lastReason, reasonText(lastReason));
+  }, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
   setenv("TZ", TIMEZONE, 1);
   tzset();
   if (!knownCount) return;

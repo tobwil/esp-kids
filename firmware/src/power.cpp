@@ -240,14 +240,14 @@ void poll() {
   hwBrightnessCap(kids::night() ? 20 : active ? 40 : 100);
 
   // Strom sparen, sobald nichts gestreamt wird: das WLAN-Funkmodul hört dann nur zu den Beacons des Routers hin
-  // (Modem-Schlaf), bei dunklem Display schläft der Prozessor zwischen den Aufgaben (pmUpdate).
-  // 0 wach (Streaming), 1 leichter Modem-Schlaf (jeder Beacon, ≈ 100 ms), 2 tiefer beim Dösen (jeder 3., ≈ 300 ms).
+  // (Modem-Schlaf, jeder Beacon), bei dunklem Display schläft der Prozessor zwischen den Aufgaben (pmUpdate).
+  // Bewusst nicht der tiefe Modem-Schlaf (nur jeder 3. Beacon): mit Repeatern riss die Verbindung dabei öfter ab.
   bool streaming = music::state().playing;
-  int psWant = !netOnline() || streaming ? 0 : doze ? 2 : 1;
+  int psWant = !netOnline() || streaming ? 0 : 1;
   static int ps = -1;
   if (psWant != ps) {
     ps = psWant;
-    WiFi.setSleep(ps == 2 ? WIFI_PS_MAX_MODEM : ps == 1 ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE);
+    WiFi.setSleep(ps ? WIFI_PS_MIN_MODEM : WIFI_PS_NONE);
   }
   streamingNow = streaming;
 }

@@ -96,7 +96,9 @@ der Browser merkt sie sich danach. Reiter:
 - **Hören:** Fernbedienung (abspielen, Pause, weiter, Lautstärke, Sleep-Timer – auch nachts und ohne Freigabe, die Zeit
   zählt trotzdem), die Freigabeliste, **Suchen und Stöbern** in Radio und ARD Audiothek mit 🧸 + zum Freigeben, zuletzt
   gehörte Folgen.
-- **Gerät:** Akku mit Verlauf und Restlaufzeit, Sparmodus, Tiefschlaf, Name, Display, WLAN, Firmware-Update, Neustart.
+- **Gerät:** Akku mit Verlauf und Restlaufzeit, Sparmodus, Tiefschlaf, Name, Display, WLAN, Firmware-Update, Neustart;
+  unter „Uhr“ der verbundene Zugangspunkt, die WLAN-Abbrüche mit Grund und wie lange die Uhr schon läuft (mit dem Grund
+  des letzten Starts, z. B. „Absturz“).
 
 Direkt verlinkbar: `#heute`, `#regeln`, `#hoeren`, `#geraet`. Die Uhr stellt sich ein eigenes Zertifikat aus, deshalb
 warnt der Browser einmal („trotzdem öffnen“); danach ist die Verbindung verschlüsselt, auch die PIN.
@@ -120,6 +122,15 @@ warnt der Browser einmal („trotzdem öffnen“); danach ist die Verbindung ver
 
 Kommt die Uhr von Taschenfunk, bleiben WLAN, Eltern-PIN, Freigaben (Radio und Audiothek), Bettzeit, Lautstärke, Balance-Rekorde und die
 Stellen in angefangenen Folgen erhalten.
+
+## WLAN mit Repeatern
+
+Die Uhr sucht alle Kanäle ab und verbindet sich mit dem **stärksten Zugangspunkt** des Netzes – bei Repeatern oder
+Mesh gibt es mehrere mit demselben Namen. Ist der Empfang 20 Sekunden lang schwach (unter −72 dBm), sucht sie im
+Hintergrund nach einem mindestens 8 dB besseren und wechselt dorthin (nur bei hellem Display oder laufender Wiedergabe;
+findet sie keinen, erst 5 Minuten später wieder). Bricht die Verbindung ab, verbindet sie sich sofort neu, wieder mit
+dem stärksten. Eine Folge lädt nach einem Aussetzer an der Abrissstelle weiter (die schon geladenen Sekunden laufen
+derweil), ein Radiosender verbindet sich neu; klappt das 2 Minuten lang nicht, steht „Keine Verbindung“ da.
 
 ## Akku
 
@@ -152,6 +163,7 @@ Befehle im seriellen Monitor: `tap X Y`, `hold X Y [ms]`, `swipe l|r|u|d`, `boot
 Lage), `status`, `page apps|music|game|control|parent`, `home`, `open game|radio|stories`, `browse radio|stories`,
 `unlock game 15` (Minuten, −1 = bis zur Bettzeit), `lock radio`, `used stories 30` (heute genutzte Minuten),
 `weather 63 9 day|night` (Testwetter, `weather off`), `level 3`, `tilt 0.3 -0.2` / `tilt off`, `vol 40`,
+`wlan` (Zugangspunkt, Empfang, Abbrüche), `wlan drop` (Aussetzer vortäuschen), `wlan roam` (Repeater-Suche),
 `toggle`, `next`, `stop`, `wifi SSID PASSWORT`, `pin 1234` / `pin -` (Eltern-PIN setzen/löschen), `poweroff`.
 
 ## Technik
@@ -160,7 +172,8 @@ Lage), `status`, `page apps|music|game|control|parent`, `home`, `open game|radio
   116 × 116-Pixelbild gezeichnet (`faceart.cpp`, ohne LVGL) und ×4 vergrößert.
 - **Audio:** ES8311 über I2S mit 44,1 kHz, ein Mischer-Task für Musik und Klänge mit weicher Lautstärke. Das Mikrofon
   (ES7210) wird abgeschaltet.
-- **Hören:** MP3-Spieler (libhelix, Resampling) mit Range-Anfragen und gemerkter Position, Radio live mit ICY-Titeln
+- **Hören:** MP3-Spieler (libhelix, Resampling) mit Range-Anfragen, gemerkter Position und Weiterladen nach
+  Verbindungsabbrüchen, Radio live mit ICY-Titeln
   und Neuverbinden. Sender über radio-browser.info, Audiothek über GraphQL (api.ardaudiothek.de), Cover über den
   Bild-Proxy wsrv.nl.
 - **Weboberfläche:** esp_https_server mit selbst ausgestelltem EC-Zertifikat (397 Tage, Name und IP als SAN); der

@@ -8,6 +8,7 @@
 //   überall: nach rechts wischen = zurück · BOOT kurz = Apps bzw. zurück zum Zifferblatt
 //   PWR kurz = Display an/aus · PWR lang = Ausschalten/Neustart
 #include <Arduino.h>
+#include <WiFi.h>
 #include <esp_task_wdt.h>
 #include <mbedtls/platform.h>
 #include "audio.h"
@@ -25,6 +26,20 @@
 #include "weather.h"
 #include "webui.h"
 #include "ui/ui.h"
+
+// Grund des letzten Starts (Status, Weboberfläche): ein „Absturz“ hier heißt, die Uhr ist von selbst neu gestartet
+const char* resetText() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "Eingeschaltet";
+    case ESP_RST_SW: return "Neustart";
+    case ESP_RST_DEEPSLEEP: return "Aus dem Tiefschlaf";
+    case ESP_RST_PANIC: return "Absturz";
+    case ESP_RST_INT_WDT: case ESP_RST_TASK_WDT: case ESP_RST_WDT: return "Wächter (hing)";
+    case ESP_RST_BROWNOUT: return "Spannung zu niedrig";
+    case ESP_RST_USB: return "USB";
+    default: return "unbekannt";
+  }
+}
 
 // Kennung des Boards in der Firmware: Updates per WLAN prüfen sie (webui.cpp)
 extern const char TF_BOARD_TAG[];
@@ -64,6 +79,9 @@ bool appCommand(const char* line) {
   else if (!strcmp(line, "weather off")) faceTest(-1, 0, true);
   else if (int t; sscanf(line, "weather %d %d %99s", &n, &t, a) == 3) faceTest(n, t, strcmp(a, "night"));
   else if (sscanf(line, "level %d", &n) == 1) gameTestLevel(n);
+  else if (!strcmp(line, "wlan drop")) { WiFi.disconnect(); Serial.println("WLAN getrennt (Test)"); }  // Aussetzer vortäuschen
+  else if (!strcmp(line, "wlan roam")) netRoamNow();
+  else if (!strcmp(line, "wlan")) Serial.printf("WLAN: %s, %d dBm, Abbrüche: %s\n", netAp().c_str(), netRssi(), netDrops().c_str());
   // Eltern-PIN setzen bzw. löschen (nur über USB, zum Testen): „pin 1234“, „pin -“
   else if (sscanf(line, "pin %8s", a) == 1) {
     kids::Cfg c = kids::cfg();
@@ -84,9 +102,10 @@ bool appCommand(const char* line) {
     hwDeepSleep(0);
   } else if (!strcmp(line, "status")) {
     music::State s = music::state();
-    Serial.printf("WLAN %s %s · Musik %s %s · Lautstärke %d%% · Akku %d%% · Heap %u · Laufzeit %lu s",
+    Serial.printf("WLAN %s %s · Musik %s %s%s%s · Lautstärke %d%% · Akku %d%% · Heap %u · Laufzeit %lu s (%s)",
                   netOnline() ? "an" : "aus", netOnline() ? netIp().c_str() : "", s.active ? (s.playing ? "spielt" : "Pause") : "aus",
-                  s.title, cfg.volume, hwBattery(), heap_caps_get_free_size(MALLOC_CAP_INTERNAL), (unsigned long)(millis() / 1000));
+                  s.title, s.msg[0] ? " – " : "", s.msg, cfg.volume, hwBattery(), heap_caps_get_free_size(MALLOC_CAP_INTERNAL),
+                  (unsigned long)(millis() / 1000), resetText());
     for (int i = 0; i < quota::APPS; i++)
       Serial.printf(" · %s %d/%d min, Status %d, noch %ld s", quota::name((quota::App)i), quota::usedMin((quota::App)i),
                     quota::limitMin((quota::App)i), (int)quota::status((quota::App)i), quota::leftS((quota::App)i));
@@ -121,7 +140,7 @@ void setup() {
   // nach einer Etappe der Nachtruhe aufgewacht und es ist noch Nacht: dunkel bleiben (sie schläft gleich weiter)
   if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER && pwr::nightRest(nullptr)) hwScreen(false);
   hwBrightness(cfg.brightness);
-  Serial.printf("Pixeluhr %s bereit (%s)\n", FW_VERSION, cfg.name);
+  Serial.printf("Pixeluhr %s bereit (%s) – Start: %s\n", FW_VERSION, cfg.name, resetText());
   // Wächter für die Hauptschleife: hängt sie länger als 60 s (z. B. ein Treiber, der nicht zurückkehrt), startet die
   // Uhr neu statt dunkel und unerreichbar zu bleiben. 60 s, weil manche Web-Anfragen die Schleife bis 20 s belegen.
   esp_task_wdt_config_t wdt = {.timeout_ms = 60000, .idle_core_mask = 0, .trigger_panic = true};

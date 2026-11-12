@@ -3,6 +3,7 @@
 #include <mp3dec.h>
 #include "art.h"
 #include "audio.h"
+#include "net.h"
 #include "power.h"
 #include "web.h"
 
@@ -142,36 +143,74 @@ static void task(void*) {
   bool live = false;          // Radiosender
   int metaint = 0, metaLeft = 0;
   String station;
-  uint32_t retryAt = 0;
+  uint32_t retryAt = 0;       // neu verbinden ab (0 = nicht)
+  uint32_t lostSince = 0;     // seit wann die Verbindung fehlt (0 = da)
+  uint32_t endOffset = 0;     // Folge: Dateiende laut Server (0 = unbekannt)
+  uint32_t lastData = 0;      // zuletzt Daten bekommen
 
   auto close = [&]() { if (c) { delete c; c = nullptr; } };
+  // Kein Netz oder Server weg: alle 5 s neu versuchen; nach 2 Minuten ohne Erfolg aufgeben
+  auto retryLater = [&](const char* msg) {
+    close();
+    if (!lostSince) lostSince = millis();
+    if (millis() - lostSince > 120000) {
+      Serial.println("Player: keine Verbindung, gebe auf");
+      setMsg(live ? "Sender nicht erreichbar" : "Keine Verbindung – bitte nochmal starten");
+      retryAt = lostSince = 0;
+      return;
+    }
+    setMsg(msg);
+    retryAt = millis() + 5000;
+  };
+  auto connected = [&]() {  // gemeinsamer Teil nach erfolgreichem Öffnen
+    metaint = metaLeft = live ? c->metaint : 0;
+    endOffset = !live && c->size > 0 ? offset + c->size : 0;
+    retryAt = lostSince = 0;
+    lastData = millis();
+    setMsg("");
+    if (!paused) audio::musicPause(false);
+  };
   auto openAt = [&](uint32_t at, uint32_t sec) -> bool {
     close();
     audio::musicPause(true);
     audio::musicFlush();
-    baseSec = sec;
-    have = 0;
-    c = new web::Conn();
-    char range[40];
     if (live) at = 0;
-    snprintf(range, sizeof(range), "Range: bytes=%u-", (unsigned)at);
-    if (!web::open(*c, url, live ? "Icy-MetaData: 1" : at ? range : nullptr, 15000)) {
-      Serial.printf("Player: %s nicht erreichbar (%d)\n", live ? "Sender" : "Folge", c->code);
-      close();
-      setMsg(live ? "Sender nicht erreichbar" : "Folge nicht erreichbar");
-      if (live) retryAt = millis() + 5000;
-      return false;
-    }
-    metaint = metaLeft = live ? c->metaint : 0;
-    retryAt = 0;
-    if (at && c->code != 206) { at = 0; baseSec = 0; }  // Server kann keine Bereiche: von vorn
+    baseSec = sec;
     offset = at;
+    have = 0;
     skipId3 = 0;
     id3Checked = false;
     rsPhase = 0;
-    setMsg("");
-    if (!paused) audio::musicPause(false);
+    c = new web::Conn();
+    char range[40];
+    snprintf(range, sizeof(range), "Range: bytes=%u-", (unsigned)at);
+    if (!netOnline() || !web::open(*c, url, live ? "Icy-MetaData: 1" : at ? range : nullptr, 15000)) {
+      Serial.printf("Player: %s nicht erreichbar (%d)\n", live ? "Sender" : "Folge", c ? c->code : 0);
+      retryLater("Verbinde …");
+      return false;
+    }
+    if (at && c->code != 206) { offset = 0; baseSec = 0; }  // Server kann keine Bereiche: von vorn
+    connected();
     return true;
+  };
+  // Folge: Verbindung mitten im Stück weg (WLAN-Aussetzer) – an der Abrissstelle weiterladen, ohne die schon
+  // geladenen Sekunden wegzuwerfen. Radio: neu verbinden (der Strom hat keine Stelle).
+  auto resume = [&]() {
+    if (live) { openAt(0, 0); return; }
+    c = new web::Conn();
+    char range[40];
+    snprintf(range, sizeof(range), "Range: bytes=%u-", (unsigned)offset);
+    if (!netOnline() || !web::open(*c, url, offset ? range : nullptr, 15000) || (offset && c->code != 206)) {
+      retryLater("Verbinde neu …");
+      return;
+    }
+    Serial.printf("Player: weiter ab Byte %u\n", (unsigned)offset);
+    connected();
+  };
+  auto lost = [&](const char* why) {
+    Serial.printf("Player: Verbindung weg (%s)\n", why);
+    retryLater("Verbinde neu …");
+    if (retryAt) retryAt = millis() + 1000;  // gleich der erste Versuch (außer es wurde schon aufgegeben)
   };
 
   for (;;) {
@@ -202,6 +241,7 @@ static void task(void*) {
         audio::musicPause(paused);
         if (paused) { pausedAt = millis(); if (!live) savePos(url.c_str(), offset, baseSec + audio::musicPlayed() / audio::SR); }
         else if (reopen || !c) { reopen = false; openAt(offset, baseSec + audio::musicPlayed() / audio::SR); }
+        else lastData = millis();  // die Pause zählt nicht als „hängt“
       } else if (k == C_SKIP && st.active && !live) {
         uint32_t sec = baseSec + audio::musicPlayed() / audio::SR;
         int target = max(0, (int)sec + skipBy);
@@ -212,9 +252,9 @@ static void task(void*) {
         int32_t at = max((int32_t)0, heard + (target - (int)sec) * bps);
         openAt(at, target);
       } else if (k == C_STOP) {
-        if (c && !live) savePos(url.c_str(), offset, baseSec + audio::musicPlayed() / audio::SR);
+        if ((c || retryAt) && !live) savePos(url.c_str(), offset, baseSec + audio::musicPlayed() / audio::SR);
         close();
-        retryAt = 0;
+        retryAt = lostSince = 0;
         audio::musicPause(true);
         audio::musicFlush();
         xSemaphoreTake(mtx, portMAX_DELAY);
@@ -222,8 +262,8 @@ static void task(void*) {
         xSemaphoreGive(mtx);
       }
     }
-    // Sender weg: nach kurzer Pause neu verbinden
-    if (!c && live && retryAt && !paused && st.active && millis() > retryAt) { setMsg("Verbinde neu …"); openAt(0, 0); continue; }
+    // Verbindung weg: neu verbinden, sobald es Zeit ist
+    if (!c && retryAt && !paused && st.active && (int32_t)(millis() - retryAt) >= 0) { retryAt = 0; resume(); continue; }
     if (!c) { vTaskDelay(pdMS_TO_TICKS(pwr::dozing() ? 1000 : 50)); continue; }  // dösend seltener nachsehen
 
     // lange Pause: Verbindung schließen, beim Weiterhören mit Range neu öffnen
@@ -231,13 +271,15 @@ static void task(void*) {
     // Position regelmäßig sichern
     if (!live && millis() - savedAt > 15000) { savedAt = millis(); savePos(url.c_str(), offset, baseSec + audio::musicPlayed() / audio::SR); }
 
-    // Puffer füllen
+    // Puffer füllen (ohne Verbindung liefert HTTPClient keinen Strom mehr, sondern nullptr)
     NetworkClient* s = c->stream();
+    if (!s) { lost("getrennt"); continue; }
+    if (have < IN_SZ / 2 && !paused && millis() - lastData > 20000) { lost("keine Daten"); continue; }  // hängt
     if (have < IN_SZ / 2) {
       int room = IN_SZ - have;
       if (metaint) room = min(room, metaLeft);
       int n = s->read(in + have, room);
-      if (n > 0) { have += n; offset += n; if (metaint) metaLeft -= n; }
+      if (n > 0) { have += n; offset += n; lastData = millis(); if (metaint) metaLeft -= n; }
       if (metaint && metaLeft == 0) {
         // Titel-Einschub: 1 Byte Länge (×16), dann Text
         uint8_t* m = meta;
@@ -262,11 +304,10 @@ static void task(void*) {
         }
         continue;
       }
-      if (n <= 0 && live && !s->connected() && !s->available()) {
-        // Sender hat die Verbindung beendet: neu verbinden
-        Serial.println("Radio: Verbindung weg, verbinde neu");
-        close();
-        retryAt = millis() + 2000;
+      if (n <= 0 && live && !s->connected() && !s->available()) { lost("Sender hat beendet"); continue; }
+      // Folge abgerissen, bevor die Datei zu Ende ist (oder das WLAN fehlt): weiterladen statt „zu Ende“
+      if (n <= 0 && !s->connected() && !s->available() && ((endOffset && offset < endOffset) || !netOnline())) {
+        lost("vor dem Ende");
         continue;
       }
       if (n <= 0 && !s->connected() && !s->available() && have < 4) {
